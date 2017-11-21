@@ -17,3 +17,7 @@
 *.h5
 *.pyc
 *.png
+
+tags
+venv
+__pycache__/

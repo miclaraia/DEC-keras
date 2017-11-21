@@ -26,6 +26,8 @@ from keras.utils.vis_utils import plot_model
 from sklearn.cluster import KMeans
 from sklearn import metrics
 
+from dec_keras.SAE import SAE
+
 
 def cluster_acc(y_true, y_pred):
     """
@@ -164,7 +166,6 @@ class DEC(object):
         # This method added so the output ae_weights file can be specified.
         # Added Darryl Wright 20171030
         print('No pretrained ae_weights given, start pretraining...')
-        from SAE import SAE
         sae = SAE(dims=self.dims)
         sae.fit(x, epochs=400)
         sae.autoencoders.save_weights(ae_weights)
