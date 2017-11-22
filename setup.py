@@ -34,5 +34,7 @@ setup(
         'keras',
         'tensorflow',
         'sklearn',
+        'pydot',
+        'graphviz',
     ],
 )
