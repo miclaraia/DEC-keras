@@ -14,8 +14,12 @@ Author:
     Xifeng Guo. 2017.1.30
 """
 
+import csv
+import os
 from time import time
 import numpy as np
+import logging
+
 import keras.backend as K
 from keras.engine.topology import Layer, InputSpec
 from keras.layers import Dense, Input
@@ -25,8 +29,11 @@ from keras.utils.vis_utils import plot_model
 
 from sklearn.cluster import KMeans
 from sklearn import metrics
+from sklearn.utils.linear_assignment_ import linear_assignment
 
 from dec_keras.SAE import SAE
+
+logger = logging.getLogger(__name__)
 
 
 def cluster_acc(y_true, y_pred):
@@ -42,11 +49,13 @@ def cluster_acc(y_true, y_pred):
     """
     y_true = y_true.astype(np.int64)
     assert y_pred.size == y_true.size
+
     D = max(y_pred.max(), y_true.max()) + 1
     w = np.zeros((D, D), dtype=np.int64)
+
     for i in range(y_pred.size):
         w[y_pred[i], y_true[i]] += 1
-    from sklearn.utils.linear_assignment_ import linear_assignment
+
     ind = linear_assignment(w.max() - w)
     return sum([w[i, j] for i, j in ind]) * 1.0 / y_pred.size
 
@@ -161,6 +170,7 @@ class DEC(object):
         self.alpha = alpha
         self.batch_size = batch_size
         self.autoencoder = autoencoder(self.dims)
+        self.model = None
 
     def train_sae(self, ae_weights, x):
         # This method added so the output ae_weights file can be specified.
@@ -172,18 +182,23 @@ class DEC(object):
         print('Pretrained AE weights saved to \'%s\''%ae_weights)
         self.autoencoder.set_weights(sae.autoencoders.get_weights())
         
-    def initialize_model(self, optimizer, ae_weights=None, x=None, loss=None):
+    def initialize_model(self, optimizer, ae_weights=None, x=None, loss=None,
+                         load_by_name=False):
         # Adding loss as passed option - Darryl Wright 20171103
         if loss is None:
-          loss = 'kld'
-        if ae_weights is not None:  # load pretrained weights of autoencoder
-            # try except added. Darryl Wright 20171030
-            try:
-                self.autoencoder.load_weights(ae_weights)
-            except OSError:
-                self.train_sae(ae_weights, x)
-        else:
+            loss = 'kld'
+        if ae_weights is None:
             ae_weights = './ae_weights.h5'
+
+        if os.path.isfile(ae_weights):
+            try:
+                self.autoencoder.load_weights(ae_weights, by_name=load_by_name)
+            except OSError as e:
+                logger.exception(e)
+                logger.error('ae_weights file exists, but couldn\'t load it. '
+                             'It is probably corrupted')
+                raise e
+        else:
             self.train_sae(ae_weights, x)
             
         hidden = self.autoencoder.get_layer(name='encoder_%d' % (self.n_stacks - 1)).output
@@ -228,7 +243,6 @@ class DEC(object):
         self.model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
 
         # logging file
-        import csv, os
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
